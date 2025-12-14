@@ -4,32 +4,32 @@ const admin = require("firebase-admin");
 require("dotenv").config();
 
 if (process.env.PROJECT_ID && process.env.CLIENT_EMAIL && process.env.PRIVATE_KEY) {
-    try {
-        admin.initializeApp({
-            credential: admin.credential.cert({
-                type: process.env.TYPE,
-                project_id: process.env.PROJECT_ID,
-                private_key_id: process.env.PRIVATE_KEY_ID,
-                private_key: process.env.PRIVATE_KEY?.replace(/\\n/g, "\n"),
-                client_email: process.env.CLIENT_EMAIL,
-                client_id: process.env.CLIENT_ID,
-                auth_uri: process.env.AUTH_URI,
-                token_uri: process.env.TOKEN_URI,
-                auth_provider_x509_cert_url: process.env.AUTH_PROVIDER_CERT_URL,
-                client_x509_cert_url: process.env.CLIENT_CERT_URL,
-                universe_domain: process.env.UNIVERSE_DOMAIN,
-            }),
-        });
-        console.log(
-            "Firebase Admin initialized with local serviceAccountKey.json"
-        );
-    } catch (err) {
-        console.error(
-            "Failed to initialize Firebase Admin with serviceAccountKey.json:",
-            err
-        );
-    }
-  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert({
+        type: process.env.TYPE,
+        project_id: process.env.PROJECT_ID,
+        private_key_id: process.env.PRIVATE_KEY_ID,
+        private_key: process.env.PRIVATE_KEY?.replace(/\\n/g, "\n"),
+        client_email: process.env.CLIENT_EMAIL,
+        client_id: process.env.CLIENT_ID,
+        auth_uri: process.env.AUTH_URI,
+        token_uri: process.env.TOKEN_URI,
+        auth_provider_x509_cert_url: process.env.AUTH_PROVIDER_CERT_URL,
+        client_x509_cert_url: process.env.CLIENT_CERT_URL,
+        universe_domain: process.env.UNIVERSE_DOMAIN,
+      }),
+    });
+    console.log(
+      "Firebase Admin initialized with local serviceAccountKey.json"
+    );
+  } catch (err) {
+    console.error(
+      "Failed to initialize Firebase Admin with serviceAccountKey.json:",
+      err
+    );
+  }
+} else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
   // If GOOGLE_APPLICATION_CREDENTIALS is set, admin SDK will use the application default credentials
   try {
     admin.initializeApp();
@@ -44,13 +44,14 @@ if (process.env.PROJECT_ID && process.env.CLIENT_EMAIL && process.env.PRIVATE_KE
 }
 const cors = require("cors");
 const express = require("express");
+const User = require("./src/models/User");
 require("dotenv").config();
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 const httpServer = createServer(app);
-const port = process.env.PORT || 5000;
+const port = parseInt(process.env.PORT) || 5000;
 const connectDB = require("./src/db/connectDB.js");
 
 const io = new Server(httpServer, {
@@ -84,27 +85,40 @@ io.on("connection", (socket) => {
       });
     }
 
-    // Always send FCM notification (even if user is online, for app-closed state)
-    if (fcmToken) {
+    // 🔔 PUSH NOTIFICATION (ONLY ADDITION)
+    const receiver = await User.findById(to);
+
+    if (!receiver || !receiver.fcmToken) {
+      console.log("❌ Push skipped: No FCM token");
+    } else {
       const message = {
-        token: fcmToken,
-        data: {
-          type: "incoming_call",
-          caller_name: String(from),
-          room_id: String(roomName),
-          caller_socket_id: String(socket.id),
-          caller_id: String(to),
+        token: receiver.fcmToken,
+
+        notification: {
+          title: "Incoming Call",
+          body: "You have an incoming call",
         },
+
         android: {
           priority: "high",
+          notification: {
+            channelId: "call_channel",
+            sound: "ringtone",
+          },
+        },
+
+        data: {
+          type: "incoming_call",
+          room_id: roomName,
+          from_user: from,
         },
       };
 
       try {
         await admin.messaging().send(message);
-        console.log("✅ FCM Notification sent successfully");
-      } catch (error) {
-        console.error("❌ FCM Error:", error);
+        console.log("✅ Incoming call push sent");
+      } catch (e) {
+        console.error("❌ Push failed:", e.message);
       }
     }
   });
