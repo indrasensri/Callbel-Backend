@@ -1,28 +1,56 @@
 const { AccessToken } = require("livekit-server-sdk");
-const LiveKit = require("../../../models/LliveKit");
+const LiveKit = require("../../../models/LiveKit");
 
 const getLiveKit = async (req, res, next) => {
   try {
-    const { key, secret } = await LiveKit.findOne();
+    // Fetch LiveKit credentials
+    const credentials = await LiveKit.findOne();
 
-    if (!key || !secret) {
-      return res.status(500).json({ error: "LiveKit credentials not found" });
+    if (!credentials?.key || !credentials?.secret) {
+      return res.status(500).json({
+        error: "LiveKit credentials not found",
+      });
     }
 
-    const { roomName, username } = req.query;
+    const { key, secret } = credentials;
+    const { roomName, username, role = "web" } = req.query;
 
-    // Create token
-    const at = new AccessToken(key, secret, { identity: username });
+    // Validate request params
+    if (!roomName || !username) {
+      return res.status(400).json({
+        error: "roomName and username are required",
+      });
+    }
 
-    // Add permissions
-    at.addGrant({ roomJoin: true, room: roomName });
+    // Generate a unique identity to prevent DUPLICATE_IDENTITY issue
+    const identity = `${role}_${username}_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 6)}`;
 
-    // Wait for the token string
-    const token = await at.toJwt();
+    // Create LiveKit access token
+    const token = new AccessToken(key, secret, {
+      identity,
+      name: username,
+    });
 
-    res.json({ token });
+    // Assign permissions
+    token.addGrant({
+      roomJoin: true,
+      room: roomName,
+      canPublish: true,
+      canSubscribe: true,
+    });
+
+    // Generate JWT
+    const jwt = token.toJwt();
+
+    // Respond with token
+    return res.status(200).json({
+      token: jwt,
+      identity,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("LiveKit Token Error:", error);
     next(error);
   }
 };
