@@ -1,5 +1,5 @@
 const { AccessToken } = require("livekit-server-sdk");
-const LiveKit = require("../../../models/LiveKit");
+const LiveKit = require("../../../models/LliveKit");
 
 const getLiveKit = async (req, res, next) => {
   try {
