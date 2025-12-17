@@ -81,18 +81,6 @@ io.on("connection", (socket) => {
   });
 
   // Guest calls registered user
-  socket.on("guest-call", async ({ from, to, roomName, fcmToken }) => {
-    const target = userSockets.find((entry) => entry.id === to);
-
-    if (target) {
-      // Notify registered user about incoming call via Socket.IO
-      io.to(target.socketId).emit("incoming-call", {
-        from: { name: from, guest: true, socketId: socket.id },
-        roomName,
-      });
-    }
-
-    // 🔔 PUSH NOTIFICATION (ONLY ADDITION)
     socket.on("guest-call", async ({ from, to, roomName, fcmToken }) => {
       const target = userSockets.find((entry) => entry.id === to);
 
@@ -188,7 +176,6 @@ io.on("connection", (socket) => {
       );
     });
   });
-});
 
 const userRoutes = require("./src/routes/auth/index.js");
 const liveKit = require("./src/routes/liveKit/index.js");
