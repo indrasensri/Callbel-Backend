@@ -42,8 +42,8 @@ const getLiveKit = async (req, res, next) => {
     });
 
     // Generate JWT
-    const jwt = token.toJwt();
-
+    const jwt = await token.toJwt();
+    
     // Respond with token
     return res.status(200).json({
       token: jwt,
