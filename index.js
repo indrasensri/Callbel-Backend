@@ -86,37 +86,50 @@ io.on("connection", (socket) => {
     }
 
     // 🔔 PUSH NOTIFICATION (ONLY ADDITION)
+  socket.on("guest-call", async ({ from, to, roomName, fcmToken }) => {
+    const target = userSockets.find((entry) => entry.id === to);
+
+    // 1. Notify via Socket (Foreground)
+    if (target) {
+      io.to(target.socketId).emit("incoming-call", {
+        from: { name: from, guest: true, socketId: socket.id },
+        roomName,
+      });
+    }
+
+    // 2. Notify via FCM (Background / Killed)
     const receiver = await User.findById(to);
 
     if (!receiver || !receiver.fcmToken) {
       console.log("❌ Push skipped: No FCM token");
     } else {
+      
+      // ✅ CHANGED: Data-Only Payload structure for Full Screen Intent
       const message = {
         token: receiver.fcmToken,
 
-        notification: {
-          title: "Incoming Call",
-          body: "You have an incoming call",
-        },
+        // ❌ REMOVED: notification: { title: "...", body: "..." } 
+        // We remove this so Android doesn't show a system tray notification automatically.
+        // This allows the Flutter background handler to wake the app and show the Call UI.
 
         android: {
           priority: "high",
-          notification: {
-            channelId: "call_channel",
-            sound: "ringtone",
-          },
+          ttl: 0, // 0 = Deliver immediately or drop (don't ring 20 mins later)
         },
 
         data: {
           type: "incoming_call",
-          room_id: roomName,
-          from_user: from,
+          callerName: from,              // Renamed from from_user
+          roomName: roomName,            // Renamed from room_id
+          guestSocketId: socket.id,      // 👈 CRITICAL: Needed to Accept the call
+          uuid: Date.now().toString(),   // Unique ID for the call
+          avatar: "https://i.pravatar.cc/300" // Optional: Dummy avatar
         },
       };
 
       try {
         await admin.messaging().send(message);
-        console.log("✅ Incoming call push sent");
+        console.log("✅ Incoming call Data-Push sent");
       } catch (e) {
         console.error("❌ Push failed:", e.message);
       }
