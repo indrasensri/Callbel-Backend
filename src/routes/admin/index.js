@@ -6,26 +6,25 @@ const getLiveKit = require("../../api/v1/admin/getLiveKit");
 const getPaygic = require("../../api/v1/admin/getPaygic");
 const setLiveKit = require("../../api/v1/admin/setLiveKit");
 const setPaygic = require("../../api/v1/admin/setPaygic");
-const checkAdmin = require("../../middlewares/checkAdmin");
+const { adminOnly } = require("../../middlewares/userValidate");
 
 const router = require("express").Router();
 
-router.get("/users/:id/:email", checkAdmin, getAllUsers);
-router.delete("/user/delete/:id/:email/:userId", checkAdmin, deleteUser);
+router.get("/users/:id/:email", adminOnly, getAllUsers);
+router.delete("/user/delete/:id/:email/:userId", adminOnly, deleteUser);
 
 // website data related
-router.post("/website/add/:id/:email", checkAdmin, addWebsiteData);
+router.post("/website/add/:id/:email", adminOnly, addWebsiteData);
 
 // paygic
-router.get("/paygic/:id/:email", checkAdmin, getPaygic);
-router.put("/paygic/set/:id/:email", checkAdmin, setPaygic);
+router.get("/paygic/:id/:email", adminOnly, getPaygic);
+router.put("/paygic/set/:id/:email", adminOnly, setPaygic);
 
 // contact
-router.get("/contacts/:id/:email", checkAdmin, getAllContacts);
-
+router.get("/contacts/:id/:email", adminOnly, getAllContacts);
 
 // livekit
-router.put("/livekit/set/:id/:email", checkAdmin, setLiveKit);
-router.get("/livekit/:id/:email", checkAdmin, getLiveKit);
+router.put("/livekit/set/:id/:email", adminOnly, setLiveKit);
+router.get("/livekit/:id/:email", adminOnly, getLiveKit);
 
 module.exports = router;

@@ -5,15 +5,16 @@ const getUserData = require("../../api/v1/users/getUser");
 const getWebsiteData = require("../../api/v1/users/getWebsiteData");
 const updateUserData = require("../../api/v1/users/updateUserData");
 const saveFcmToken = require("../../api/v1/users/saveFcmToken");
+const { protect } = require("../../middlewares/userValidate");
 
 const router = require("express").Router();
 
-router.put("/update/:userId", updateUserData);
-router.get("/myData/:userId", getMyData);
+router.put("/update/:userId", protect, updateUserData);
+router.get("/myData/:userId", protect, getMyData);
 router.get("/get/:userId", getUserData);
 router.get("/website", getWebsiteData);
-router.post('/contact', createContact)
-router.get('/liveKit', getLiveKitData)
-router.post('/save-fcm-token', saveFcmToken)
+router.post("/contact", createContact);
+router.get("/liveKit", getLiveKitData);
+router.post("/save-fcm-token", saveFcmToken);
 
 module.exports = router;

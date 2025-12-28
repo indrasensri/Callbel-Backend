@@ -55,14 +55,21 @@ const User = require("./src/models/User");
 require("dotenv").config();
 
 const app = express();
-app.use(cors());
+app.use(
+  cors({
+    origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_2],
+    credentials: true,
+  })
+);
 app.use(express.json());
 const httpServer = createServer(app);
 const port = parseInt(process.env.PORT) || 5000;
 const connectDB = require("./src/db/connectDB.js");
 
 const io = new Server(httpServer, {
-  cors: { origin: "*" },
+  cors: {
+    origin: [process.env.FRONTEND_URL, process.env.FRONTEND_URL_2],
+  },
 });
 
 let userSockets = []; // Move outside, so it's shared across all connections
@@ -81,101 +88,102 @@ io.on("connection", (socket) => {
   });
 
   // Guest calls registered user
-    socket.on("guest-call", async ({ from, to, roomName, fcmToken }) => {
-      const target = userSockets.find((entry) => entry.id === to);
-
-      // 1. Notify via Socket (Foreground)
-      if (target) {
-        io.to(target.socketId).emit("incoming-call", {
-          from: { name: from, guest: true, socketId: socket.id },
-          roomName,
-        });
-      }
-
-      // 2. Notify via FCM (Background / Killed)
-      const receiver = await User.findById(to);
-
-      if (!receiver || !receiver.fcmToken) {
-        console.log("❌ Push skipped: No FCM token");
-      } else {
-        // ✅ CHANGED: Data-Only Payload structure for Full Screen Intent
-        const message = {
-          token: receiver.fcmToken,
-
-          // ❌ REMOVED: notification: { title: "...", body: "..." }
-          // We remove this so Android doesn't show a system tray notification automatically.
-          // This allows the Flutter background handler to wake the app and show the Call UI.
-
-          android: {
-            priority: "high",
-            ttl: 0, // 0 = Deliver immediately or drop (don't ring 20 mins later)
-          },
-
-          data: {
-            type: "incoming_call",
-            callerName: from, // Renamed from from_user
-            roomName: roomName, // Renamed from room_id
-            guestSocketId: socket.id, // 👈 CRITICAL: Needed to Accept the call
-            uuid: Date.now().toString(), // Unique ID for the call
-            avatar: "https://i.pravatar.cc/300", // Optional: Dummy avatar
-          },
-        };
-
-        try {
-          await admin.messaging().send(message);
-          console.log("✅ Incoming call Data-Push sent");
-        } catch (e) {
-          console.error("❌ Push failed:", e.message);
-        }
-      }
-    });
-
-    // Registered user accepts the call
-    socket.on("call-accepted", ({ roomName, guestSocketId }) => {
-      io.to(guestSocketId).emit("call-accepted", {
+  socket.on("guest-call", async ({ from, to, roomName, fcmToken }) => {
+    const target = userSockets.find((entry) => entry.id === to);
+    // 1. Notify via Socket (Foreground)
+    if (target) {
+      io.to(target.socketId).emit("incoming-call", {
+        from: {
+          name: from,
+          gestSocketId: socket.id,
+          guest: true,
+          socketId: socket.id,
+        },
         roomName,
-        peerSocketId: socket.id,
       });
-    });
+    }
 
-    // Registered user declines call
-    socket.on("call-declined", ({ guestSocketId }) => {
-      // Send decline event back to the guest
-      io.to(guestSocketId).emit("call-declined");
-    });
+    // 2. Notify via FCM (Background / Killed)
+    const receiver = await User.findById(to);
 
-    // When a user ends the call
-    socket.on("end-call", ({ targetSocketId }) => {
-      // Notify the other peer
-      io.to(targetSocketId).emit("end-call");
-      // Also notify the sender (so both clean up at once)
-      io.to(socket.id).emit("end-call");
-    });
+    if (!receiver || !receiver.fcmToken) {
+      console.log("❌ Push skipped: No FCM token");
+    } else {
+      // ✅ CHANGED: Data-Only Payload structure for Full Screen Intent
+      const message = {
+        token: receiver.fcmToken,
 
-    // When the caller cancels the call
-    socket.on("callCanceled", ({ userId }) => {
-      const target = userSockets.find((entry) => entry.id === userId);
-      if (target) {
-        io.to(target.socketId).emit("callCanceled", {
-          from: socket.id,
-          success: true,
-        });
+        // ❌ REMOVED: notification: { title: "...", body: "..." }
+        // We remove this so Android doesn't show a system tray notification automatically.
+        // This allows the Flutter background handler to wake the app and show the Call UI.
+
+        android: {
+          priority: "high",
+          ttl: 0, // 0 = Deliver immediately or drop (don't ring 20 mins later)
+        },
+
+        data: {
+          type: "incoming_call",
+          callerName: from, // Renamed from from_user
+          roomName: roomName, // Renamed from room_id
+          guestSocketId: socket.id, // 👈 CRITICAL: Needed to Accept the call
+          uuid: Date.now().toString(), // Unique ID for the call
+          avatar: "https://i.pravatar.cc/300", // Optional: Dummy avatar
+        },
+      };
+
+      try {
+        await admin.messaging().send(message);
+        console.log("✅ Incoming call Data-Push sent");
+      } catch (e) {
+        console.error("❌ Push failed:", e.message);
       }
-    });
+    }
+  });
 
-    // Handle disconnect
-    socket.on("disconnect", () => {
-      const index = userSockets.findIndex(
-        (entry) => entry.socketId === socket.id
-      );
-      if (index !== -1) userSockets.splice(index, 1);
-
-      io.emit(
-        "users",
-        userSockets.map(({ socketId, ...rest }) => rest)
-      );
+  // Registered user accepts the call
+  socket.on("call-accepted", ({ roomName, guestSocketId }) => {
+    io.to(guestSocketId).emit("call-accepted", {
+      roomName,
+      peerSocketId: socket.id,
     });
   });
+
+  // Registered user declines call
+  socket.on("call-declined", ({ guestSocketId }) => {
+    // Send decline event back to the guest
+    io.to(guestSocketId).emit("call-declined");
+  });
+
+  // When a user ends the call
+  socket.on("end-call", ({ targetSocketId }) => {
+    io.to(targetSocketId).emit("end-call");
+  });
+
+  // When the caller cancels the call
+  socket.on("callCanceled", ({ userId }) => {
+    const target = userSockets.find((entry) => entry.id === userId);
+    if (target) {
+      io.to(target.socketId).emit("callCanceled", {
+        from: socket.id,
+        success: true,
+      });
+    }
+  });
+
+  // Handle disconnect
+  socket.on("disconnect", () => {
+    const index = userSockets.findIndex(
+      (entry) => entry.socketId === socket.id
+    );
+    if (index !== -1) userSockets.splice(index, 1);
+
+    io.emit(
+      "users",
+      userSockets.map(({ socketId, ...rest }) => rest)
+    );
+  });
+});
 
 const userRoutes = require("./src/routes/auth/index.js");
 const liveKit = require("./src/routes/liveKit/index.js");
