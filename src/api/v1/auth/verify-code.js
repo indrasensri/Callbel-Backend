@@ -1,5 +1,4 @@
 const User = require("../../../models/User");
-const bcrypt = require("bcrypt");
 
 const verifyCode = async (req, res) => {
   let { email, code } = req.body;

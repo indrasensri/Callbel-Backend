@@ -32,13 +32,15 @@ const login = async (req, res, next) => {
       picture: user.picture,
     };
 
+    const fcmToken = user.fcmToken
+
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
       { expiresIn: 60 * 60 * 24 * 60 },
       (err, token) => {
         if (err) return res.status(500).json({ token: "Error signing token." });
-        res.status(200).json({ token });
+        res.status(200).json({ token, fcmToken });
       }
     );
 

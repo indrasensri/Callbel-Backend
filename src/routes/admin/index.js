@@ -11,6 +11,8 @@ const { adminOnly } = require("../../middlewares/userValidate");
 const router = require("express").Router();
 
 router.get("/users/:id/:email", adminOnly, getAllUsers);
+router.get("/getAllUsers", getAllUsers);
+
 router.delete("/user/delete/:id/:email/:userId", adminOnly, deleteUser);
 
 // website data related
