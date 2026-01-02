@@ -3,3 +3,4 @@ node_modules
 .vercel
 .example.env
 .serviceAccountKey.json
+google-service-credential.json
